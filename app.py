@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import xgboost as xgb
 
 # -----------------------------------------------------------------------------
-# 1. 页面基础配置 (必须是第一行代码)
+# 1. 页面基础配置
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="HCC Risk Prediction System",
@@ -16,18 +16,20 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 自定义CSS: 调整顶部留白，使其看起来更像原生软件
+# 自定义 CSS
 st.markdown("""
     <style>
-        .block-container {
-            padding-top: 1rem;
-            padding-bottom: 1rem;
-        }
+        .block-container { padding-top: 1rem; padding-bottom: 2rem; }
         h1 { font-size: 1.8rem; }
-        .stButton>button {
-            width: 100%;
-            background-color: #ff4b4b;
-            color: white;
+        .stButton>button { width: 100%; background-color: #ff4b4b; color: white; }
+        /* 调整公式区域的样式 */
+        .formula-box {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 5px solid #ff4b4b;
+            margin-bottom: 20px;
+            font-size: 0.9em;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -37,13 +39,8 @@ st.markdown("""
 # -----------------------------------------------------------------------------
 @st.cache_resource
 def load_model():
-    """
-    在真实部署中，这里应该加载已经训练好的模型文件，例如:
-    model = joblib.load('hcc_model.pkl')
-    此处为了演示，我们现场快速训练一个模拟模型。
-    """
+    # 模拟训练过程 (与之前一致)
     np.random.seed(42)
-    # 模拟训练数据 (1000条)
     X_train = pd.DataFrame({
         'Age': np.random.randint(20, 90, 1000),
         'Hepatic_Nodule': np.random.randint(0, 2, 1000),
@@ -63,20 +60,15 @@ def load_model():
         'FDP': np.random.uniform(0, 10, 1000)
     })
     
-    # 模拟标签逻辑：AFP高、Age大、有结节 -> 风险高
     logits = (X_train['AFP']*0.4 + X_train['Age']*0.3 + X_train['Hepatic_Nodule']*50 + 
               X_train['PIVKA_II']*0.2 + np.random.normal(0, 20, 1000))
     y_train = (logits > np.percentile(logits, 70)).astype(int)
     
     model = xgb.XGBClassifier(n_estimators=100, max_depth=3, use_label_encoder=False, eval_metric='logloss')
     model.fit(X_train, y_train)
-    
-    # 创建解释器
     explainer = shap.TreeExplainer(model)
-    
     return model, explainer
 
-# 初始化模型 (利用缓存，只会运行一次)
 try:
     model, explainer = load_model()
 except Exception as e:
@@ -84,18 +76,14 @@ except Exception as e:
     st.stop()
 
 # -----------------------------------------------------------------------------
-# 3. 侧边栏：用户输入
+# 3. 侧边栏：用户输入 (增加 Help 提示)
 # -----------------------------------------------------------------------------
 with st.sidebar:
     st.title("Predictive modeling")
     st.markdown("---")
     
-    # 收集输入数据的字典
     inputs = {}
-    
-    # 按照图片顺序排列
     inputs['Age'] = st.slider("Age(year)", 0, 95, 42)
-    
     nodule = st.selectbox("Hepatic nodule(>=1cm)", ["No", "Yes"])
     inputs['Hepatic_Nodule'] = 1 if nodule == "Yes" else 0
     
@@ -108,10 +96,21 @@ with st.sidebar:
     inputs['TBA'] = st.number_input("TBA(umol/L)", value=6.0)
     
     st.markdown("---")
-    st.caption("Calculated Scores")
-    inputs['GASR'] = st.number_input("GASR", value=1.0)
-    inputs['AAAR'] = st.number_input("AAAR", value=2.0)
-    inputs['ALBI'] = st.number_input("ALBI", value=1.0)
+    st.markdown("**Calculated Indices**")
+    
+    # --- 在这里增加了 help 参数，鼠标悬停会显示公式 ---
+    inputs['GASR'] = st.number_input(
+        "GASR", value=1.0, 
+        help="Formula: GGT(U/L) / AST(U/L)"
+    )
+    inputs['AAAR'] = st.number_input(
+        "AAAR", value=2.0, 
+        help="Formula: AFP(ng/ml) / [AST(U/L) * ALT(U/L)]"
+    )
+    inputs['ALBI'] = st.number_input(
+        "ALBI", value=1.0, 
+        help="Formula: [log10 TBIL(umol/L) * 0.66] + [ALB(g/L) * (-0.085)]"
+    )
     
     st.markdown("---")
     inputs['CK'] = st.number_input("CK(U/L)", value=91.0)
@@ -123,80 +122,76 @@ with st.sidebar:
     predict_btn = st.button("Predict Risk")
 
 # -----------------------------------------------------------------------------
-# 4. 主界面：展示结果
+# 4. 主界面
 # -----------------------------------------------------------------------------
 
-# 顶部公式说明
-st.caption("The formulas to calculate GASR, AAAR, and ALBI are as follows: GASR=GGT/AST; AAAR=AFP/[AST*ALT]; ALBI= [log10 TBIL* 0.66] + [ALB * (-0.085)]")
+# --- 新增：使用 Expander 折叠显示公式，保持界面整洁但随时可查 ---
+with st.expander("View Calculation Formulas (GASR, AAAR, ALBI)", expanded=True):
+    st.markdown("The formulas to calculate the derived indices are as follows:")
+    
+    # 使用 columns 将公式横向排列
+    c1, c2, c3 = st.columns(3)
+    
+    with c1:
+        st.markdown("**1. GASR**")
+        st.latex(r'''
+            GASR = \frac{\text{GGT (U/L)}}{\text{AST (U/L)}}
+        ''')
+        
+    with c2:
+        st.markdown("**2. AAAR**")
+        st.latex(r'''
+            AAAR = \frac{\text{AFP (ng/ml)}}{\text{AST} \times \text{ALT}}
+        ''')
+        
+    with c3:
+        st.markdown("**3. ALBI**")
+        st.latex(r'''
+            ALBI = (\log_{10}(\text{TBIL}) \times 0.66) + (\text{ALB} \times -0.085)
+        ''')
+    
+    st.caption("*Units: TBIL in umol/L, ALB in g/L*")
 
-st.markdown("<h3 style='text-align: center; color: #d32f2f;'><<< Probability of HCC Risk >>></h3>", unsafe_allow_html=True)
+# 标题
+st.markdown("<h3 style='text-align: center; color: #d32f2f; margin-top: 20px;'><<< Probability of HCC Risk >>></h3>", unsafe_allow_html=True)
 
 if predict_btn:
-    # 4.1 准备数据
+    # 预测逻辑
     input_df = pd.DataFrame([inputs])
-    
-    # 4.2 预测
-    # predict_proba 返回 [[prob_class_0, prob_class_1]]
     probability = model.predict_proba(input_df)[0][1]
     risk_percentage = probability * 100
     
-    # -------------------------------------------------------
-    # 4.3 布局：左侧圆环图，右侧SHAP图
-    # -------------------------------------------------------
     col_chart, col_shap = st.columns([1, 1.5])
     
+    # 圆环图
     with col_chart:
-        # 圆环图
         labels = ['Risk', 'Non-Risk']
         values = [risk_percentage, 100 - risk_percentage]
-        colors = ['#FF0000', '#008CBA'] # 红色和蓝色
+        colors = ['#FF0000', '#008CBA']
         
         fig = go.Figure(data=[go.Pie(
-            labels=labels, 
-            values=values, 
-            hole=.65, 
-            marker=dict(colors=colors),
-            sort=False,
-            textinfo='none',
-            hoverinfo='label+percent'
+            labels=labels, values=values, hole=.65, 
+            marker=dict(colors=colors), sort=False, textinfo='none', hoverinfo='label+percent'
         )])
         
-        fig.add_annotation(
-            text=f"<b>Risk<br>{risk_percentage:.2f}%</b>", 
-            x=0.5, y=0.5, font_size=22, showarrow=False
-        )
-        
-        fig.update_layout(
-            showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
-            margin=dict(t=30, b=0, l=20, r=20),
-            height=350
-        )
+        fig.add_annotation(text=f"<b>Risk<br>{risk_percentage:.2f}%</b>", x=0.5, y=0.5, font_size=22, showarrow=False)
+        fig.update_layout(showlegend=True, legend=dict(orientation="h", y=1.05), margin=dict(t=30, b=0, l=20, r=20), height=350)
         st.plotly_chart(fig, use_container_width=True)
 
+    # SHAP 解释
     with col_shap:
-        st.markdown("##### Model Interpretation (Why?)")
-        
-        # 计算 SHAP 值
-        shap_values = explainer(input_df)
-        
-        # 绘制瀑布图
-        fig_shap, ax = plt.subplots(figsize=(6, 4))
-        # max_display 控制显示前几个最重要的特征
-        shap.plots.waterfall(shap_values[0], max_display=8, show=False)
-        
-        # 调整 Matplotlib 样式以适应网页
-        plt.tight_layout()
-        st.pyplot(fig_shap, clear_figure=True, use_container_width=True)
-        
-        st.info("SHAP Waterfall Plot explains which features pushed the risk up (Red) or down (Blue) from the baseline.")
-
+        st.markdown("##### Model Interpretation (SHAP)")
+        with st.spinner("Calculating feature contributions..."):
+            shap_values = explainer(input_df)
+            fig_shap, ax = plt.subplots(figsize=(6, 4))
+            shap.plots.waterfall(shap_values[0], max_display=8, show=False)
+            plt.tight_layout()
+            st.pyplot(fig_shap, clear_figure=True, use_container_width=True)
 else:
-    # 初始状态提示
     st.markdown(
         """
-        <div style="text-align: center; padding: 50px; background-color: #f0f2f6; border-radius: 10px;">
-            <h4> Please input parameters on the left sidebar and click "Predict Risk"</h4>
+        <div style="text-align: center; padding: 40px; color: #666;">
+            Please adjust the clinical parameters on the left sidebar and click <b>Predict Risk</b>.
         </div>
         """, 
         unsafe_allow_html=True
