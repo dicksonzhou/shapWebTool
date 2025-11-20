@@ -136,7 +136,7 @@ else:
     # 如果没有模型，侧边栏显示锁定状态或提示
     with st.sidebar:
         st.markdown("---")
-        st.warning(⚠️ Please upload data and train model first.")
+        st.warning("Please upload data and train model first.")
         predict_btn = False
 
 # -----------------------------------------------------------------------------
@@ -144,7 +144,7 @@ else:
 # -----------------------------------------------------------------------------
 
 # 公式说明
-with st.expander("ℹ️ View Calculation Formulas (GASR, AAAR, ALBI)", expanded=True):
+with st.expander(" View Calculation Formulas (GASR, AAAR, ALBI)", expanded=True):
     c1, c2, c3 = st.columns(3)
     with c1: st.latex(r'GASR = \frac{\text{GGT}}{\text{AST}}')
     with c2: st.latex(r'AAAR = \frac{\text{AFP}}{\text{AST} \times \text{ALT}}')
@@ -194,13 +194,13 @@ if is_model_ready:
             plt.tight_layout()
             st.pyplot(fig_shap, clear_figure=True, use_container_width=True)
     else:
-        st.info("👈 Adjust patient parameters on the left and click 'Predict Risk'.")
+        st.info(" Adjust patient parameters on the left and click 'Predict Risk'.")
 else:
     # 引导用户上传数据的空状态页
     st.markdown(
         """
         <div style="text-align: center; padding: 50px; background-color: #f0f2f6; border-radius: 10px; border: 2px dashed #ccc;">
-            <h2>📂 Waiting for Data</h2>
+            <h2> Waiting for Data</h2>
             <p>Please upload a CSV file in the sidebar to initialize the model.</p>
             <p style="font-size: 0.9em; color: #666;">
                 <b>Required CSV Columns:</b><br>
